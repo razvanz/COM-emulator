@@ -12,8 +12,6 @@ package kea.razvanz.comportemulator.util;
  */
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
 * The ThrottleInputStream provides bandwidth throttling on a specified
