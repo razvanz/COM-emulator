@@ -28,10 +28,17 @@ import kea.zmirc.systemintegration.p1.shared.util.User;
  */
 public class ComPortEmulator {
     
-    public static int BITRATE = 9600;
+    public static final long NANOS_PER_SECOND = 1000000000;
+    public static int DEFAULT_BAUD = 9600;
     public static int NOISE_EXPENTANCY = 0;
     
-    private long counter = 0;
+    private long baud = DEFAULT_BAUD;
+    
+    private long lastTansferRate = 0;
+    private long startCountTime = 0;
+    private int frameCount = 0;
+    
+    private long noiselessCounter = 0;
     private User sourceUser = null;
     
     public Queue<byte[]> receivedFrames = new LinkedTransferQueue<byte[]>() ;
@@ -45,7 +52,7 @@ public class ComPortEmulator {
      * @param receiveHandler code to run when a package is received
     */
     public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler){
-        this(source, receiveHandler, UDPSocket.DEFAULT_PORT, UDPSocket.DEFAULT_BUFFER_SIZE);
+        this(source, receiveHandler, UDPSocket.DEFAULT_PORT, UDPSocket.DEFAULT_BUFFER_SIZE, DEFAULT_BAUD);
     }
     
     /**
@@ -55,11 +62,11 @@ public class ComPortEmulator {
      * @param bufferSize used for receive/send packages
      * @see User
      */
-    public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler, int port, int bufferSize ){
+    public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler, int port, int bufferSize, long baud ){
         socket = new UDPSocket(User.Colautti_Matias_Benjamin, (dr, udps) -> {
             handleMessage(dr.getData(), dr.getSource());
         }, port, bufferSize);
-        
+        this.baud = baud;
 	this.receiveHndl = receiveHandler;
         
 	Thread emulator = new Thread(() -> {
@@ -74,8 +81,8 @@ public class ComPortEmulator {
 	while (true) {
             if (receivedFrames.size() > 0){
                 byte[] frame = receivedFrames.poll();
-                counter ++;
-                if (counter % (100/NOISE_EXPENTANCY) == 0) { // the noise
+                noiselessCounter ++;
+                if (noiselessCounter % (100/NOISE_EXPENTANCY) == 0) { // the noise
                     Random rand = new Random();
                     byte[] b = new byte[frame.length];
                     rand.nextBytes(b);
@@ -87,11 +94,17 @@ public class ComPortEmulator {
             }
             else{
                 Random rand = new Random();
-                byte[] b = new byte[1];
+                    byte[] b = new byte[3];
                 rand.nextBytes(b);
                 throttledSendFrame(b);
+                try {
+                    // Saving some CPU
+                    Thread.sleep((long) (200 * rand.nextDouble()));
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(ComPortEmulator.class.getName()).log(Level.SEVERE, null, ex);
+                }
+
             }
-            
    	}
     }
     
@@ -100,11 +113,34 @@ public class ComPortEmulator {
         InputStream stream = new ThrottledInputStream(is, 1200); //1200 bytes/s == 9600 bits/s
         try {
             for(int readByte = stream.read(); readByte != -1 ;readByte=stream.read()){
-                receiveHndl.onReceive((byte) readByte);
+                if(++frameCount/1000 > 1 && startCountTime > 0) calibrateThrottler(System.nanoTime());
+                receiveHndl.onReceive((byte) readByte);                
+                startCountTime = System.nanoTime();
             }
         } catch (IOException ex) {
             Logger.getLogger(ComPortEmulator.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+    
+    private void calibrateThrottler(long endedCounterTime){
+        long currentBaud = NANOS_PER_SECOND /  (endedCounterTime - startCountTime + 1);
+        System.err.println("BAUD: " + String.valueOf(currentBaud));
+        if (currentBaud < baud/8){
+            if(currentBaud < lastTansferRate)
+                ThrottledInputStream.regulator += (lastTansferRate - currentBaud) * 200;
+            else
+                ThrottledInputStream.regulator += 400;
+        }
+        else{
+            if(currentBaud > lastTansferRate && lastTansferRate != 0)
+                ThrottledInputStream.regulator -= (currentBaud - lastTansferRate) * 200;
+            else
+                ThrottledInputStream.regulator -= 400;
+        }
+        // cleanup
+        frameCount = 0;
+        lastTansferRate = currentBaud;
+        return;
     }
        
     public void handleMessage(byte[] data, User user){

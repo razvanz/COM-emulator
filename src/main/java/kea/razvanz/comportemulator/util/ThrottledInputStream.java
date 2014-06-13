@@ -12,6 +12,8 @@ package kea.razvanz.comportemulator.util;
  */
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
 * The ThrottleInputStream provides bandwidth throttling on a specified
@@ -27,13 +29,12 @@ public class ThrottledInputStream extends InputStream {
 
   private final InputStream rawStream;
   private final long maxBytesPerSec ;
-  public static final double NANOS_PER_SECOND = 1000000000;
-  private static final long SLEEP_DURATION_NS =750000;
-  public static final double SMOOTHNESS = .80;
+  public static final long NANOS_PER_SECOND = 1000000000;
+  public static long regulator = 1000;
 
-  private int prevSpeed = 0;
-  private long startTime = System.nanoTime();
-  private long endTime = 0;
+  private long startTime = 0;
+  
+
 
   public ThrottledInputStream(InputStream rawStream) {
     this(rawStream, Long.MAX_VALUE);
@@ -43,28 +44,16 @@ public class ThrottledInputStream extends InputStream {
     assert maxBytesPerSec > 0 : "Bandwidth " + maxBytesPerSec + " is invalid";
     this.rawStream = rawStream;
     this.maxBytesPerSec = maxBytesPerSec;
+    
   }
   
-  /**
-* Getter for the read-rate from this stream, since creation.
-* @return Read rate, in bytes/sec.
-*/
-  public int getBytesPerSec()
-    {
-        long delta = endTime - startTime;
-        if (prevSpeed == 0 || delta < 0)
-                prevSpeed = (int) maxBytesPerSec + 1; // throttle for buffer of size 1
-        else
-                prevSpeed = (int) ( (1 / delta) * SMOOTHNESS + (1 - SMOOTHNESS) * prevSpeed );
-        return prevSpeed;
-    }
-
   /** @inheritDoc */
   @Override
   public int read() throws IOException {
-    throttle();
+    startTime = System.nanoTime();
     int data = rawStream.read();
-    endTime = System.nanoTime();
+    if (data != -1) throttle();
+
     return data;
   }
 
@@ -100,13 +89,11 @@ public class ThrottledInputStream extends InputStream {
   }
 
   private void throttle() throws IOException {
-    if (getBytesPerSec() > maxBytesPerSec) {
-        startTime = System.nanoTime();
-        long end = 0;
-        do{
-            end = System.nanoTime();
-        }while(startTime + SLEEP_DURATION_NS > end);
-    }
+    long expectedDelivery = startTime +  NANOS_PER_SECOND / maxBytesPerSec - regulator;
+    long end = 0;
+    do{
+        end = System.nanoTime();
+    }while(expectedDelivery > end);
   }
 
 
@@ -115,7 +102,6 @@ public class ThrottledInputStream extends InputStream {
   public String toString() {
     return "ThrottledInputStream{" +
         ", maxBytesPerSec=" + maxBytesPerSec +
-        ", bytesPerSec=" + getBytesPerSec() +
         '}';
   }
 }
