@@ -10,15 +10,17 @@ package kea.razvanz.comportemulator;
  *
  * @author razvanz
  */
-import kea.razvanz.comportemulator.util.ThrottledInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import kea.razvanz.comportemulator.util.ThrottledInputStream;
 import kea.zmirc.systemintegration.p1.shared.UDPSocket;
 import kea.zmirc.systemintegration.p1.shared.util.User;
 
@@ -30,9 +32,10 @@ public class ComPortEmulator {
     
     public static final long NANOS_PER_SECOND = 1000000000;
     public static int DEFAULT_BAUD = 9600;
-    public static int NOISE_EXPENTANCY = 0;
+    public static final int DEFAUL_NOISE_EXPENTANCY = 1; // procent
     
     private long baud = DEFAULT_BAUD;
+    private long noiseExpectancy = DEFAUL_NOISE_EXPENTANCY;
     
     private long lastTansferRate = 0;
     private long startCountTime = 0;
@@ -52,7 +55,7 @@ public class ComPortEmulator {
      * @param receiveHandler code to run when a package is received
     */
     public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler){
-        this(source, receiveHandler, UDPSocket.DEFAULT_PORT, UDPSocket.DEFAULT_BUFFER_SIZE, DEFAULT_BAUD);
+        this(source, receiveHandler, UDPSocket.DEFAULT_PORT, UDPSocket.DEFAULT_BUFFER_SIZE, DEFAULT_BAUD, DEFAUL_NOISE_EXPENTANCY);
     }
     
     /**
@@ -62,12 +65,13 @@ public class ComPortEmulator {
      * @param bufferSize used for receive/send packages
      * @see User
      */
-    public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler, int port, int bufferSize, long baud ){
+    public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler, int port, int bufferSize, long baud , int noiseExpectancy ){
         socket = new UDPSocket(User.Colautti_Matias_Benjamin, (dr, udps) -> {
             handleMessage(dr.getData(), dr.getSource());
         }, port, bufferSize);
         this.baud = baud;
 	this.receiveHndl = receiveHandler;
+        this.noiseExpectancy = (noiseExpectancy > 0) && (noiseExpectancy < 101) ? noiseExpectancy : 1;
         
 	Thread emulator = new Thread(() -> {
             emulate();
@@ -82,7 +86,7 @@ public class ComPortEmulator {
             if (receivedFrames.size() > 0){
                 byte[] frame = receivedFrames.poll();
                 noiselessCounter ++;
-                if (noiselessCounter % (100/NOISE_EXPENTANCY) == 0) { // the noise
+                if (noiselessCounter % (100/noiseExpectancy) == 0) { // the noise
                     Random rand = new Random();
                     byte[] b = new byte[frame.length];
                     rand.nextBytes(b);
@@ -108,7 +112,7 @@ public class ComPortEmulator {
    	}
     }
     
-    public void throttledSendFrame(byte[] frame){
+    private void throttledSendFrame(byte[] frame){
         InputStream is = new ByteArrayInputStream(frame);
         InputStream stream = new ThrottledInputStream(is, 1200); //1200 bytes/s == 9600 bits/s
         try {
@@ -143,8 +147,12 @@ public class ComPortEmulator {
         return;
     }
        
-    public void handleMessage(byte[] data, User user){
+    private void handleMessage(byte[] data, User user){
         sourceUser = user;
         receivedFrames.add(data);
+    }
+    
+    public void sendMsg(User user, byte[] data) throws UnknownHostException {
+        socket.send(user, InetAddress.getByName("127.0.0.1"), UDPSocket.DEFAULT_PORT, data);
     }
 }
