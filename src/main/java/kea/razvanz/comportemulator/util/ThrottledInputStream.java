@@ -58,6 +58,7 @@ public class ThrottledInputStream extends InputStream {
   /** @inheritDoc */
   @Override
   public int read(byte[] b) throws IOException {
+    // untested functionality
     int bufferSize = b.length;
     if(bufferSize == 0) return 0;
     int readByte = 0, readLen;
@@ -72,6 +73,7 @@ public class ThrottledInputStream extends InputStream {
   /** @inheritDoc */
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
+    // untested functionality
     int bufferSize = b.length;
     if(bufferSize == 0 || len == 0 || off > bufferSize || (off + len) > bufferSize) return 0;
     int readByte = 0, readLen = 0;
@@ -87,6 +89,7 @@ public class ThrottledInputStream extends InputStream {
   }
 
   private void throttle() throws IOException {
+    Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
     long expectedDelivery = startTime +  NANOS_PER_SECOND / maxBytesPerSec - regulator;
     long end = 0;
     do{
