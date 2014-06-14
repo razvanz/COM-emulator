@@ -37,7 +37,7 @@ public class ComPortEmulator {
     private int frameCount = 0;
     
     private long noiselessCounter = 0;
-    private User sourceUser = null;
+    private User fromUser = null;
     
     ThrottledInputStream stream = null;
     
@@ -65,7 +65,7 @@ public class ComPortEmulator {
      * @see User
      */
     public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler, int port, int bufferSize, long baud , int noiseExpectancy ){
-        socket = new UDPSocket(User.Colautti_Matias_Benjamin, (dr, udps) -> {
+        socket = new UDPSocket(source, (dr, udps) -> {
             handleMessage(dr.getData(), dr.getSource());
         }, port, bufferSize);
         this.baud = baud;
@@ -146,7 +146,7 @@ public class ComPortEmulator {
         lastTansferRate = currentBaud;
     }
        
-    private void handleMessage(byte[] data, User user){ 
+    private void handleMessage(byte[] data, User user){
         receivedFrames.add(data);
     }
     
