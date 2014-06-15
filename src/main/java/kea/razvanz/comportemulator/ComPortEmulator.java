@@ -152,12 +152,13 @@ public class ComPortEmulator {
     
     /**Method used to send a frame
      * 
-     * @param user - the receiver or the frame
-     * @param data - the frame to be send
+     * @param user the receiver or the frame
+     * @param destination the receiver IP address
+     * @param data the frame to be send
+     * @param portNumber the receiver port number
      * @throws UnknownHostException if the user specified is not found in the available users library;
      */
-    
-    public void sendMsg(User user, byte[] data) throws UnknownHostException {
-        socket.send(user, InetAddress.getByName("127.0.0.1"), UDPSocket.DEFAULT_PORT, data);
+    public void sendFrame(User user, String destination, int portNumber,byte[] data) throws UnknownHostException {
+        socket.send(user, InetAddress.getByName(destination).getByName(null), portNumber, data);
     }
 }
