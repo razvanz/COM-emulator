@@ -34,7 +34,7 @@ public class ComPortEmulator {
     
     private long lastTansferRate = 0;
     private long startCountTime = 0;
-    private int frameCount = 0;
+    private int frameCount = 2;
     
     private long noiselessCounter = 0;
     private User fromUser = null;
@@ -97,7 +97,7 @@ public class ComPortEmulator {
             }
             else{
                 try {
-                    Thread.sleep((long) (50));
+                    Thread.sleep((long) (10));
 
 //                    Random rand = new Random();
 //                    byte[] b = new byte[3];
