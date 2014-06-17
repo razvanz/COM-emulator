@@ -14,6 +14,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.LinkedTransferQueue;
@@ -34,10 +35,12 @@ public class ComPortEmulator {
     
     private long lastTansferRate = 0;
     private long startCountTime = 0;
-    private int frameCount = 2;
+    private int frameCount = 0;
     
     private long noiselessCounter = 0;
     private User fromUser = null;
+    private byte end = (byte) 192;
+    private int maxFrameLength = 64;
     
     ThrottledInputStream stream = null;
     
@@ -52,7 +55,7 @@ public class ComPortEmulator {
      * @param receiveHandler code to run when a package is received
     */
     public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler){
-        this(source, receiveHandler, UDPSocket.DEFAULT_PORT, UDPSocket.DEFAULT_BUFFER_SIZE, DEFAULT_BAUD, DEFAUL_NOISE_EXPENTANCY);
+        this(source, receiveHandler, UDPSocket.DEFAULT_PORT, UDPSocket.DEFAULT_BUFFER_SIZE, DEFAULT_BAUD, DEFAUL_NOISE_EXPENTANCY, (byte) 192, 64);
     }
     
     /**Constructor method.
@@ -64,10 +67,12 @@ public class ComPortEmulator {
      * @param noiseExpectancy represents the procentage at which the the frames are going to be altered to simulate the wire noise. >0 && <100
      * @see User
      */
-    public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler, int port, int bufferSize, long baud , int noiseExpectancy ){
+    public ComPortEmulator(User source, ComPortEmulatorReceiveHandler receiveHandler, int port, int bufferSize, long baud , int noiseExpectancy, byte endChar, int maxFrameLength){
         socket = new UDPSocket(source, (dr, udps) -> {
             handleMessage(dr.getData(), dr.getSource());
-        }, port, bufferSize);
+        }, port, bufferSize, false);
+        this.end = endChar;
+        this.maxFrameLength = maxFrameLength;
         this.baud = baud;
 	this.receiveHndl = receiveHandler;
         this.noiseExpectancy = (noiseExpectancy > 0) && (noiseExpectancy < 101) ? noiseExpectancy : 1;
@@ -97,7 +102,7 @@ public class ComPortEmulator {
             }
             else{
                 try {
-                    Thread.sleep((long) (10));
+                    Thread.sleep((long) (50));
 
 //                    Random rand = new Random();
 //                    byte[] b = new byte[3];
@@ -148,7 +153,13 @@ public class ComPortEmulator {
     }
        
     private void handleMessage(byte[] data, User user){
-        receivedFrames.add(data);
+        receivedFrames.add(cleanData(data));
+    }
+    
+    private byte[] cleanData(byte[] data){
+        int lastEndIndex = Arrays.binarySearch(data, 2, maxFrameLength, end);
+        lastEndIndex = lastEndIndex > 0? lastEndIndex: maxFrameLength;
+        return Arrays.copyOfRange(data, 0 , lastEndIndex + 1);
     }
     
     /**Method used to send a frame
