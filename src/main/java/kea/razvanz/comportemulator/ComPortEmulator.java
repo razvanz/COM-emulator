@@ -96,18 +96,19 @@ public class ComPortEmulator {
                 }
             }
             else{
-                Random rand = new Random();
-                byte[] b = new byte[3];
-                rand.nextBytes(b);
-                throttledSendFrame(b);
-                long lastNoiseTimestamp = System.currentTimeMillis();
-                while(!(receivedFrames.size() > 0) && (System.currentTimeMillis() - lastNoiseTimestamp) < 3000){
-                    try {
-                        // Saving some CPU
-                        Thread.sleep((long) (20 * rand.nextDouble()));
-                    } catch (InterruptedException ex) {
-                        Logger.getLogger(ComPortEmulator.class.getName()).log(Level.SEVERE, null, ex);
-                    }
+                try {
+                    Thread.sleep((long) (50));
+
+//                    Random rand = new Random();
+//                    byte[] b = new byte[3];
+//                    rand.nextBytes(b);
+//                    throttledSendFrame(b);
+//                    long lastNoiseTimestamp = System.currentTimeMillis();
+//                    while(!(receivedFrames.size() > 0) && (System.currentTimeMillis() - lastNoiseTimestamp) < 3000){
+//                        Thread.sleep((long) (20 * rand.nextDouble()));
+//                    }
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(ComPortEmulator.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
    	}
@@ -159,6 +160,7 @@ public class ComPortEmulator {
      * @throws UnknownHostException if the user specified is not found in the available users library;
      */
     public void sendFrame(User user, String destination, int portNumber,byte[] data) throws UnknownHostException {
-        socket.send(user, InetAddress.getByName(destination).getByName(null), portNumber, data);
+        System.out.println(InetAddress.getByName(destination));
+        socket.send(user, InetAddress.getByName(destination), portNumber, data);
     }
 }
