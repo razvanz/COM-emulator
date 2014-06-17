@@ -160,7 +160,6 @@ public class ComPortEmulator {
      * @throws UnknownHostException if the user specified is not found in the available users library;
      */
     public void sendFrame(User user, String destination, int portNumber,byte[] data) throws UnknownHostException {
-        System.out.println(InetAddress.getByName(destination));
         socket.send(user, InetAddress.getByName(destination), portNumber, data);
     }
 }
