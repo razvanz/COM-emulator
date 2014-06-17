@@ -12,6 +12,8 @@ package kea.razvanz.comportemulator.util;
  */
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
 * The ThrottleInputStream provides bandwidth throttling on a specified
@@ -93,6 +95,11 @@ public class ThrottledInputStream extends InputStream {
     long expectedDelivery = startTime +  NANOS_PER_SECOND / maxBytesPerSec - regulator;
     long end = 0;
     do{
+        try {
+            Thread.sleep(0, 100);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(ThrottledInputStream.class.getName()).log(Level.SEVERE, null, ex);
+        }
         end = System.nanoTime();
     }while(expectedDelivery > end);
   }
