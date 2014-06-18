@@ -44,6 +44,11 @@ public class ComPortEmulator {
     
     ThrottledInputStream stream = null;
     
+    
+    private long startSendTime = 0;
+    private long maxBytesPerSecond = DEFAULT_BAUD;
+    private long calibrator = 300;
+    
     public Queue<byte[]> receivedFrames = new LinkedTransferQueue<byte[]>() ;
     
     private UDPSocket socket;
@@ -74,6 +79,7 @@ public class ComPortEmulator {
         this.end = endChar;
         this.maxFrameLength = maxFrameLength;
         this.baud = baud;
+        this.maxBytesPerSecond = baud/8;
 	this.receiveHndl = receiveHandler;
         this.noiseExpectancy = (noiseExpectancy > 0) && (noiseExpectancy < 101) ? noiseExpectancy : 1;
         
@@ -93,11 +99,11 @@ public class ComPortEmulator {
                     Random rand = new Random();
                     byte[] b = new byte[receivedFrames.poll().length];
                     rand.nextBytes(b);
-                    throttledSendFrame(b);
+                    throttleSendFrame(b);
                 }
                 else{
                     byte[] frame = receivedFrames.poll();
-                    throttledSendFrame(frame);
+                    throttleSendFrame(frame);
                 }
             }
             else{
@@ -117,6 +123,18 @@ public class ComPortEmulator {
                 }
             }
    	}
+    }
+    
+    /**Method used to send a frame
+     * 
+     * @param user the receiver or the frame
+     * @param destination the receiver IP address
+     * @param data the frame to be send
+     * @param portNumber the receiver port number
+     * @throws UnknownHostException if the user specified is not found in the available users library;
+     */
+    public void sendFrame(User user, String destination, int portNumber,byte[] data) throws UnknownHostException {
+        socket.send(user, InetAddress.getByName(destination), portNumber, data);
     }
     
     private void throttledSendFrame(byte[] frame){
@@ -151,6 +169,26 @@ public class ComPortEmulator {
         frameCount = 0;
         lastTansferRate = currentBaud;
     }
+    
+    private void calibrateThrottle(long endedCounterTime){
+        long currentBaud = NANOS_PER_SECOND /  (endedCounterTime - startCountTime + 1);
+        System.err.println("BpS speed: " + String.valueOf(currentBaud * 8));
+        if (currentBaud < baud/8){
+            if(currentBaud < lastTansferRate)
+                calibrator += (lastTansferRate - currentBaud) * 200;
+            else
+                calibrator += 400;
+        }
+        else{
+            if(currentBaud > lastTansferRate && lastTansferRate != 0)
+                calibrator -= (currentBaud - lastTansferRate) * 200;
+            else
+                calibrator -= 400;
+        }
+        // reset
+        frameCount = 0;
+        lastTansferRate = currentBaud;
+    }
        
     private void handleMessage(byte[] data, User user){
         receivedFrames.add(cleanData(data));
@@ -162,15 +200,26 @@ public class ComPortEmulator {
         return Arrays.copyOfRange(data, 0 , lastEndIndex + 1);
     }
     
-    /**Method used to send a frame
-     * 
-     * @param user the receiver or the frame
-     * @param destination the receiver IP address
-     * @param data the frame to be send
-     * @param portNumber the receiver port number
-     * @throws UnknownHostException if the user specified is not found in the available users library;
-     */
-    public void sendFrame(User user, String destination, int portNumber,byte[] data) throws UnknownHostException {
-        socket.send(user, InetAddress.getByName(destination), portNumber, data);
+    private void throttleSendFrame(byte[] frame){
+        try {
+            for(int i=0,j = frame.length; i<j ;i++){
+                if(++frameCount/1000 > 1 && startCountTime > 0) calibrateThrottle(System.nanoTime());
+                startSendTime = System.nanoTime();
+                byte toSend = frame[i];
+                throttle();
+                receiveHndl.onReceive((byte) toSend);                
+                startCountTime = System.nanoTime();
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(ComPortEmulator.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    private void throttle() throws IOException {
+        long expectedDelivery = startSendTime +  NANOS_PER_SECOND / maxBytesPerSecond - calibrator;
+        long end = 0;
+        do{
+            end = System.nanoTime();
+        }while(expectedDelivery > end);
     }
 }
