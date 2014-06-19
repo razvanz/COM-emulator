@@ -201,21 +201,17 @@ public class ComPortEmulator {
     }
     
     private void throttleSendFrame(byte[] frame){
-        try {
-            for(int i=0,j = frame.length; i<j ;i++){
-                if(++frameCount/1000 > 1 && startCountTime > 0) calibrateThrottle(System.nanoTime());
-                startSendTime = System.nanoTime();
-                byte toSend = frame[i];
-                throttle();
-                receiveHndl.onReceive((byte) toSend);                
-                startCountTime = System.nanoTime();
-            }
-        } catch (IOException ex) {
-            Logger.getLogger(ComPortEmulator.class.getName()).log(Level.SEVERE, null, ex);
+        for(int i=0,j = frame.length; i<j ;i++){
+            if(++frameCount/1000 > 1 && startCountTime > 0) calibrateThrottle(System.nanoTime());
+            startSendTime = System.nanoTime();
+            byte toSend = frame[i];
+            throttle();
+            receiveHndl.onReceive((byte) toSend);                
+            startCountTime = System.nanoTime();
         }
     }
     
-    private void throttle() throws IOException {
+    private void throttle() {
         long expectedDelivery = startSendTime +  NANOS_PER_SECOND / maxBytesPerSecond - calibrator;
         long end = 0;
         do{
